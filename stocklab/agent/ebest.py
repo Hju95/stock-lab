@@ -69,7 +69,7 @@ class EBest:
         :return result:list 결과를 list에 담아 반환
         '''
 
-        time.sleep()
+        time.sleep(1)
         print("current query cnt:", len(self.query_cnt))
         print(res, in_block_name, out_block_name)
         while len(self.query_cnt) >= EBest.QUERY_LIMIT_10MIN:
@@ -133,6 +133,28 @@ class EBest:
         XASession.login_state = 0
         self.xa_session_client.DisconnectServer()
 
+
+    def get_code_list(self, market=None):
+
+        '''
+        TR: t8436 코스피, 코스닥의 종목 리스트를 가져온다
+        :param market:str 전체(0), 코스피(1), 코스닥(2)
+        :return result:list 시장별 종목 리스트
+        '''
+
+        if market != "ALL" and market != "KOSPI" and market != "KOSDAQ":
+            raise Exception("Need to market param(ALL, KOSPI, KOSDAQ")
+
+        market_code = {"ALL":"0", "KOSPI":"1", "KOSDAQ":"2"}
+        in_params = {"gubun":market_code[market]}
+        out_params = ['hname', 'shcode', 'expcode', 'eftgubun', 'gubun', 'spac_gubun']
+        result = self._execute_query("t8436",
+                                "t8436InBlock",
+                                "t8436OutBlock",
+                                *out_params,
+                                **in_params)
+        return result
+
 class XAQuery:
     RES_PATH = "C:\\eBEST\\xingAPI\\Res\\"
     tr_run_state = 0
@@ -143,6 +165,8 @@ class XAQuery:
 
     def OnReceiveMessage(self, error, code, message):
         print("OnreceiveMessage", error, code, message)
+
+
 
 
 
