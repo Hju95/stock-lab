@@ -147,7 +147,7 @@ class EBest:
 
         market_code = {"ALL":"0", "KOSPI":"1", "KOSDAQ":"2"}
         in_params = {"gubun":market_code[market]}
-        out_params = ['hname', 'shcode', 'expcode', 'eftgubun', 'gubun', 'spac_gubun']
+        out_params = ['hname', 'shcode', 'expcode', 'etfgubun', 'gubun', 'spac_gubun']
         result = self._execute_query("t8436",
                                 "t8436InBlock",
                                 "t8436OutBlock",
