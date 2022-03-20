@@ -104,24 +104,24 @@ class EBest:
             result.append(item)
 
         
-        print("IsNext?", xa_query.IsNext)
-        while xa_query.IsNext == True:
-            time.sleep(1)
-            errorCode = xa_query.Request(1)
-            print("errorCode", errorCode)
-            if errorCode < 0:
-                break
-            count = xa_query.GetBlockCount(out_block_name)
-            print("count", count)
-            if count == 0:
-                break
-            for i in range(count):
-                item = {}
-                for field in out_fields:
-                    value = xa_query.GetFieldData(out_block_name, field, i)
-                    item[field] = value
-                print(item)
-                result.append(item)
+        # print("IsNext?", xa_query.IsNext)
+        # while xa_query.IsNext == True:
+        #     time.sleep(1)
+        #     errorCode = xa_query.Request(1)
+        #     print("errorCode", errorCode)
+        #     if errorCode < 0:
+        #         break
+        #     count = xa_query.GetBlockCount(out_block_name)
+        #     print("count", count)
+        #     if count == 0:
+        #         break
+        #     for i in range(count):
+        #         item = {}
+        #         for field in out_fields:
+        #             value = xa_query.GetFieldData(out_block_name, field, i)
+        #             item[field] = value
+        #         print(item)
+        #         result.append(item)
         
         XAQuery.tr_run_state = 0
         self.query_cnt.append(datetime.today())
@@ -138,6 +138,104 @@ class EBest:
                             item[field_hname[field]] = item[field]
                             item.pop(field)
         return result
+
+
+    def get_stock_price_by_code(self, code=None, cnt="1"):
+        """TR: t1305 현재 날짜를 기준으로 cnt 만큼 전일의 데이터를 가져온다
+        :param code:str 종목코드
+        :param cnt:str 데이터 범위
+        :return result:list 종목의 최근 가격 정보
+        """
+        tr_code = "t1305"
+        in_params = {"shcode":code, "dwmcode": "1", "date":"", "idx":"", "cnt":cnt}
+        out_params =['date', 'open', 'high', 'low', 'close', 'sign', 
+                    'change', 'diff', 'volume', 'diff_vol', 'chdegree', 
+                    'sojinrate', 'changerate', 'fpvolume', 'covolume', 
+                    'value', 'ppvolume', 'o_sign', 'o_change', 'o_diff', 
+                    'h_sign', 'h_change', 'h_diff', 'l_sign', 'l_change', 
+                    'l_diff', 'marketcap']  
+        result = self._execute_query("t1305", 
+                                "t1305InBlock", 
+                                "t1305OutBlock1",
+                                *out_params,
+                                **in_params)
+
+        for item in result:
+            item["code"] = code
+
+        return result
+
+    def get_credit_trend_by_code(self, code=None, date=None):
+        """TR: t1921 신용거래동향 
+        :param code:str 종목코드
+        :param date:str 날짜 8자리 ex) 20220222
+        """
+        in_params = {"gubun":"0", "shcode":code, "date":date, "idx":"0"}
+        out_params =["mmdate", "close", "sign", "jchange", "diff", "nvolume",
+                    "svolume", "jvolume", "price", "change", "gyrate", "jkrate"
+                    "shcode"]
+
+        result = self._execute_query("t1921",
+                                    "t1921InBlock",
+                                    "t1921OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        for item in result:
+            item["code"] = code
+
+        return result
+
+
+    def get_agent_trend_by_code(self, code=None ,fromdt=None, todt=None):
+        """TR: t1717 외인기관별 종목별 동향
+        :param code:str 종목코드
+        :param fromdt:str 조회 시작 날짜
+        :param todt:str 조회 종료 날짜
+        :return result:list 시장 별 종목 리스트
+        """
+        in_params = {"gubun":"0", "fromdt":fromdt, "todt":todt, "shcode":code}
+        out_params =["date", "close", "sign", "change", "diff", "volume", 
+                    "tjj0000_vol", "tjj0001_vol", "tjj0002_vol", "tjj0003_vol",
+                    "tjj0004_vol", "tjj0005_vol","tjj0006_vol", "tjj0007_vol",
+                    "tjj0008_vol", "tjj0009_vol", "tjj0010_vol", "tjj0011_vol",
+                    "tjj0018_vol", "tjj0016_vol", "tjj0017_vol", "tjj0001_dan",
+                    "tjj0002_dan", "tjj0003_dan", "tjj0004_dan", "tjj0005_dan",
+                    "tjj0006_dan", "tjj0007_dan", "tjj0008_dan", "tjj0009_dan",
+                    "tjj0010_dan", "tjj0011_dan", "tjj0018_dan", "tjj0016_dan",
+                    "tjj0017_dan" ] 
+        result = self._execute_query("t1717",
+                                    "t1717InBlock",
+                                    "t1717OutBlock",
+                                    *out_params,
+                                    **in_params)
+        for item in result:
+            item["code"] = code
+
+        return result
+
+    def get_short_trend_by_code(self, code=None, sdate=None, edate=None):
+        """TR: t1927 공매도일별추이
+        :param code:str 종목코드
+        :param sdate:str 시작일자 
+        :param edate:str 종료일자
+        :return result:list 시장 별 종목 리스트
+        """
+        in_params = {"date":sdate, "sdate":sdate, "edate":edate, "shcode":code}
+        out_params =["date", "price", "sign", "change", "diff", "volume", "value", 
+                    "gm_vo", "gm_va", "gm_per", "gm_avg", "gm_vo_sum"]
+
+        result = self._execute_query("t1927",
+                                    "t1927InBlock",
+                                    "t1927OutBlock1",
+                                    *out_params,
+                                    **in_params)
+
+        for item in result:
+            item["code"] = code
+
+        return result
+
+
 
     def login(self):
         self.xa_session_client.ConnectServer(self.host, self.port)
@@ -169,6 +267,96 @@ class EBest:
                                 *out_params,
                                 **in_params)
         return result
+
+
+    def get_theme_list(self):
+        in_params = {"dummy":"1"}
+        out_params =['tmname', 'tmcode'] 
+        result = self._execute_query("t8425", 
+                                "t8425InBlock", 
+                                "t8425OutBlock",
+                                *out_params,
+                                **in_params)
+        return result
+
+    def get_category_list(self):
+        in_params = {"gubun1":"1"}
+        out_params =['hname', 'upcode'] 
+        result = self._execute_query("t8424", 
+                                "t8424InBlock", 
+                                "t8424OutBlock",
+                                *out_params,
+                                **in_params)
+        return result
+    
+    def get_price_by_category(self, upcode=None):
+        if upcode is None:
+            raise Exception("Need to upcode")
+        in_params = {"gubun":"0", "upcode":upcode}
+        out_params =['hname', 'price', 'sign', 'change', 'diff', 
+                    'volume', 'open', 'high', 'low', 'perx', 
+                    'frgsvolume', 'orgsvolume', 'diff_vol', 'total', 
+                    'value', 'shcode'] 
+        result = self._execute_query("t1516",
+                                    "t1516InBlock",
+                                    "t1516OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+    def get_price_by_theme(self, tmcode=None):
+        if tmcode is None:
+            raise Exception("Need to tmcode")
+        in_params = {"tmcode":tmcode}
+        out_params =['hname', 'price', 'sign', 'change', 'diff', 'shcode'
+                    'volume', 'open', 'high', 'low', 'value'] 
+        result = self._execute_query("t1537",
+                                    "t1537InBlock",
+                                    "t1537OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+
+
+
+    def get_event_by_code(self, code=None, date=None):
+        if code is None:
+            raise Exception("Need to tmcode")
+        in_params = {"shcode":code, "date":date}
+        out_params =["recdt", "tableid", "upgu", 
+                    "custno", "custnm", "shcode", "upnm" ]
+        result = self._execute_query("t3202",
+                                    "t3202InBlock",
+                                    "t3202OutBlock",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+
+    def get_price_n_min_by_code(self, date, code, tick=None):
+        """TR: t8412 주식차트(N분) 
+        :param code:str 종목코드
+        :param date:str 시작시간
+        :return result:dict 하루치 분당 가격 정보
+        """
+        in_params = {"shcode":code,"ncnt":"1", "qrycnt":"500", "nday":"1", "sdate":date, 
+                "stime":"090000", "edate":date, "etime":"153000", "cts_date":"00000000", 
+                "cts_time":"0000000000", "comp_yn":"N"}
+        out_params = ["date", "time", "open", "high", "low", "close", "jdiff_vol", "value"]
+
+        result_list = self._execute_query("t8412",
+                                    "t8412InBlock",
+                                    "t8412OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        result = {}
+        for idx, item in enumerate(result_list):
+            result[idx] = item
+        if tick is not None:
+            return result[tick]
+        return result
+
 
 class XAQuery:
     RES_PATH = "C:\\eBEST\\xingAPI\\Res\\"
