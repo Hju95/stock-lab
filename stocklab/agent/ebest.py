@@ -60,15 +60,14 @@ class EBest:
         self.query_cnt = []
 
     def _execute_query(self, res, in_block_name, out_block_name, *out_fields, **set_fields):
-        '''
-        TR 코드를 실행하기 위한 메서드입니다.
-        :param res:str 리소스 이름(TR)
-        :param in_block_name:str 인 블록 이름
-        :param out_block_name:str 아웃 블록 이름
-        :param in_params:dict 인 블록에 설정할 필드 딕셔너리
-        :return result:list 결과를 list에 담아 반환
-        '''
-
+        """TR코드를 실행하기 위한 메소드입니다.
+        :param res:str 리소스명(TR)
+        :param in_block_name:str 인블록명
+        :param out_blcok_name:str 아웃블록명
+        :param out_params:list 출력필드 리스트
+        :param in_params:dict 인블록에 설정할 필드 딕셔너리
+        :return result:list 결과를 list에 담아 반환 
+        """
         time.sleep(1)
         print("current query cnt:", len(self.query_cnt))
         print(res, in_block_name, out_block_name)
@@ -76,50 +75,69 @@ class EBest:
             time.sleep(1)
             print("waiting for execute query... current query cnt:", len(self.query_cnt))
             self.query_cnt = list(filter(lambda x: (datetime.today() - x).total_seconds() < EBest.LIMIT_SECONDS, self.query_cnt))
-            
-            xa_query = win32com.client.DispatchWithEvents("XA_DataSet.XAQuery", XAQuery)
-            xa_query.LoadFromResFile(XAQuery.RES_PATH + res+".res")
-            #in_block_name 셋팅
 
-            for key, value in set_fields.items():
-                xa_query.SetFieldData(in_block_name, key, 0, value)
-            errorCode = xa_query.Request(0)
+        xa_query = win32com.client.DispatchWithEvents("XA_DataSet.XAQuery", XAQuery)
+        xa_query.LoadFromResFile(XAQuery.RES_PATH + res+".res")
 
-            #요청 후 대기
-            waiting_cnt = 0
-            while xa_query.tr_run_state == 0:
-                waiting_cnt +=1
-                if waiting_cnt % 100000 == 0:
-                    print("Waiting....", self.xa_session_client.GetLastError())
-                pythoncom.PumpWaitingMessages()
+        #in_block_name 셋팅
+        for key, value in set_fields.items():
+            xa_query.SetFieldData(in_block_name, key, 0, value)
+        errorCode = xa_query.Request(0)
 
-            #결과 블록
-            result = []
+        #요청 후 대기
+        waiting_cnt = 0
+        while xa_query.tr_run_state == 0:
+            waiting_cnt +=1
+            if waiting_cnt % 1000000 == 0 :
+                print("Waiting....", self.xa_session_client.GetLastError())
+            pythoncom.PumpWaitingMessages()
+
+        #결과블럭 
+        result = []
+        count = xa_query.GetBlockCount(out_block_name)
+
+        for i in range(count):
+            item = {}
+            for field in out_fields:
+                value = xa_query.GetFieldData(out_block_name, field, i)
+                item[field] = value
+            result.append(item)
+
+        
+        print("IsNext?", xa_query.IsNext)
+        while xa_query.IsNext == True:
+            time.sleep(1)
+            errorCode = xa_query.Request(1)
+            print("errorCode", errorCode)
+            if errorCode < 0:
+                break
             count = xa_query.GetBlockCount(out_block_name)
-
+            print("count", count)
+            if count == 0:
+                break
             for i in range(count):
                 item = {}
                 for field in out_fields:
-                    value - xa_query.GetFiledData(out_block_name, field, i)
+                    value = xa_query.GetFieldData(out_block_name, field, i)
                     item[field] = value
+                print(item)
                 result.append(item)
+        
+        XAQuery.tr_run_state = 0
+        self.query_cnt.append(datetime.today())
 
-            #제약시간 체크
-            XAQuery.tr_run_state = 0
-            self.query_cnt.append(datetime.today())
 
-            #영문 필드명을 한글 필드명으로 변환
-            for item in result:
-                for field in list(item,keys()):
-                    if getattr(Field, res, None):
-                        res_field = getattr(Field, res, None)
-                        if out_block_name in res_field:
-                            field_hname = res_field[out_block_name]
-                            if field in field_hname:
-                                item[field_hname[field]] = item[field]
-                                item.pop(field)
-
-            return result
+         #영문필드를 한글필드명으로 변환
+        for item in result:
+            for field in list(item.keys()):
+                if getattr(Field, res, None):
+                    res_field = getattr(Field, res, None)
+                    if out_block_name in res_field:
+                        field_hname = res_field[out_block_name]
+                        if field in field_hname:
+                            item[field_hname[field]] = item[field]
+                            item.pop(field)
+        return result
 
     def login(self):
         self.xa_session_client.ConnectServer(self.host, self.port)
@@ -135,21 +153,18 @@ class EBest:
 
 
     def get_code_list(self, market=None):
-
-        '''
-        TR: t8436 코스피, 코스닥의 종목 리스트를 가져온다
+        """TR: t8436 코스피, 코스닥의 종목 리스트를 가져온다
         :param market:str 전체(0), 코스피(1), 코스닥(2)
-        :return result:list 시장별 종목 리스트
-        '''
-
-        if market != "ALL" and market != "KOSPI" and market != "KOSDAQ":
-            raise Exception("Need to market param(ALL, KOSPI, KOSDAQ")
+        :return result:list 시장 별 종목 리스트
+        """
+        if market not in ["ALL", "KOSPI", "KOSDAQ"]:
+            raise Exception("Need to market param(ALL, KOSPI, KOSDAQ)")
 
         market_code = {"ALL":"0", "KOSPI":"1", "KOSDAQ":"2"}
         in_params = {"gubun":market_code[market]}
-        out_params = ['hname', 'shcode', 'expcode', 'etfgubun', 'gubun', 'spac_gubun']
-        result = self._execute_query("t8436",
-                                "t8436InBlock",
+        out_params =['hname', 'shcode', 'expcode', 'etfgubun', 'memedan', 'gubun', 'spac_gubun'] 
+        result = self._execute_query("t8436", 
+                                "t8436InBlock", 
                                 "t8436OutBlock",
                                 *out_params,
                                 **in_params)

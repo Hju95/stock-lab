@@ -26,3 +26,10 @@ class TestEBest(unittest.TestCase):
             error_result = None
         assert error_result is None
         print("result:", len(all_result), len(kosdaq_result), len(kospi_result))
+
+
+    # def test_get_code_list(self):
+    #     print(inspect.stack()[0][3])
+    #     result = self.ebest.get_code_list("ALL")
+    #     assert result is not None
+    #     print(len(result))
