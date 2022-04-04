@@ -11,6 +11,12 @@ class TestEBest(unittest.TestCase):
 
     def tearDown(self):
         self.ebest.logout()
+
+
+    def test_get_account_info(self):
+        result = self.ebest.get_account_info()
+        assert result is not None
+        print(result)
         
     # def test_get_code_list(self):
     #     print(inspect.stack()[0][3])
