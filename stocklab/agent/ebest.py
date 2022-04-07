@@ -8,14 +8,14 @@ import time
 
 
 class XASession:
-    #로그인 상태를 확인하기 위한 클래스 변수
+    #로그인 상태를 확인하기 위한 클래스변수
     login_state = 0
 
-    def OnLogin(Self, code, msg):
-    
-    #로그인 시도 후 호출되는 이벤트.
-    #code가 0000이면 로그인 성공
-    
+    def OnLogin(self, code, msg):
+        """
+        로그인 시도 후 호출되는 이벤트.
+        code가 0000이면 로그인 성공
+        """
         if code == "0000":
             print(code, msg)
             XASession.login_state = 1
@@ -23,29 +23,60 @@ class XASession:
             print(code, msg)
 
     def OnDisconnect(self):
-
-    #서버와 연결이 끊어지면 발생하는 이벤트.
-
-        print("Session disconnected")
+        """
+        서버와 연결이 끊어지면 발생하는 이벤트
+        """
+        print("Session disconntected")
         XASession.login_state = 0
 
+
+class XAQuery:
+    RES_PATH ="C:\\eBEST\\xingAPI\\Res\\"
+    tr_run_state = 0
+
+    def OnReceiveData(self, code):
+        print("OnReceiveData", code)
+        XAQuery.tr_run_state = 1
+
+    def OnReceiveMessage(self, error, code, message):
+        print("OnReceiveMessage", error, code, message, XAQuery.tr_run_state)
+
+class XAReal:
+    RES_PATH = "C:\\eBEST\\xingAPI\\Res\\"
+
+    def register_code(self, code):
+        print("register code", code)
+        self.LoadFromResFile(XAReal.RES_PATH + "K3_.res")
+        self.SetFieldData("InBlock", "shcode", code)
+        self.AdviseRealData()
+
+    def OnReceiveRealData(self, tr_code):
+        print("tr_code", tr_code)
+        result = []
+        for field in ["chetime", "sign", "change", "drate", "price", "opentime", "open",
+                      "hightime", "high", "lowtime", "low", "cgubun", "cvolume", "volume",
+                      "mdvolume", "mdchecnt", "msvolume", "mschecnt", "cpower", "w_avrg",
+                      "offerho", "bidho", "status", "jnilvolume", "shcode"]:
+            value = self.GetFieldData("OutBlock", field)
+            item[field] = value
+            result.append(item)
+        print(result)
 
 class EBest:
     QUERY_LIMIT_10MIN = 200
     LIMIT_SECONDS = 600 #10min
 
-
     def __init__(self, mode=None):
+        """
+        config.ini 파일을 로드해 사용자, 서버정보 저장
+        query_cnt는 10분당 200개 TR 수행을 관리하기 위한 리스트
+        xa_session_client는 XASession 객체
+        :param mode:str - 모의서버는 DEMO 실서버는 PROD로 구분
+        """
+        if mode not in ["PROD", "DEMO", "ACE"]:
+            raise Exception("Need to run_mode(PROD or DEMO or ACE)")
 
-        #config.ini 파일을 로드해 사용자, 서버 정보 저장
-        #query_cnt는 10분당 200개의 TR 수행을 관리하기 위한 리스트
-        #xa_session_client는 XASession 객체
-        # :param mode:sir - 모의서버는 DEMO 실서버는 PROD로 구분
-
-        if mode not in ("PROD", "DEMO"):
-            raise Exception("Need to run_mode(PROD or DEMO)")
-
-        run_mode = "EBEST_"+mode
+        run_mode = "EBEST_" + mode
         config = configparser.ConfigParser()
         config.read('conf/config.ini')
         self.user = config[run_mode]['user']
@@ -55,9 +86,19 @@ class EBest:
         self.port = config[run_mode]['port']
         self.account = config[run_mode]['account']
 
-        self.xa_session_client = win32com.client.DispatchWithEvents("XA_Session.XASession",XASession)
-        
+        self.xa_session_client = win32com.client.DispatchWithEvents("XA_Session.XASession", XASession)
+
         self.query_cnt = []
+
+    def login(self):
+        self.xa_session_client.ConnectServer(self.host, self.port)
+        self.xa_session_client.Login(self.user, self.passwd, self.cert_passwd, 0, 0)
+        while XASession.login_state == 0:
+            pythoncom.PumpWaitingMessages()
+
+    def logout(self):
+        XASession.login_state = 0
+        self.xa_session_client.DisconnectServer()
 
     def _execute_query(self, res, in_block_name, out_block_name, *out_fields, **set_fields):
         """TR코드를 실행하기 위한 메소드입니다.
@@ -103,31 +144,30 @@ class EBest:
                 item[field] = value
             result.append(item)
 
-        
-        # print("IsNext?", xa_query.IsNext)
-        # while xa_query.IsNext == True:
-        #     time.sleep(1)
-        #     errorCode = xa_query.Request(1)
-        #     print("errorCode", errorCode)
-        #     if errorCode < 0:
-        #         break
-        #     count = xa_query.GetBlockCount(out_block_name)
-        #     print("count", count)
-        #     if count == 0:
-        #         break
-        #     for i in range(count):
-        #         item = {}
-        #         for field in out_fields:
-        #             value = xa_query.GetFieldData(out_block_name, field, i)
-        #             item[field] = value
-        #         print(item)
-        #         result.append(item)
-        
+        """
+        print("IsNext?", xa_query.IsNext)
+        while xa_query.IsNext == True:
+            time.sleep(1)
+            errorCode = xa_query.Request(1)
+            print("errorCode", errorCode)
+            if errorCode < 0:
+                break
+            count = xa_query.GetBlockCount(out_block_name)
+            print("count", count)
+            if count == 0:
+                break
+            for i in range(count):
+                item = {}
+                for field in out_fields:
+                    value = xa_query.GetFieldData(out_block_name, field, i)
+                    item[field] = value
+                print(item)
+                result.append(item)
+        """
         XAQuery.tr_run_state = 0
         self.query_cnt.append(datetime.today())
 
-
-         #영문필드를 한글필드명으로 변환
+        #영문필드를 한글필드명으로 변환
         for item in result:
             for field in list(item.keys()):
                 if getattr(Field, res, None):
@@ -139,7 +179,56 @@ class EBest:
                             item.pop(field)
         return result
 
+    def get_tick_size(self, price):
+        """호가 단위 조회 메소드
+        참고:    
+        http://regulation.krx.co.kr/contents/RGL/03/03010100/RGL03010100.jsp#8339ae36256c1f6cffd910cd71e4dc85=3
+        http://regulation.krx.co.kr/contents/RGL/03/03020100/RGL03020100.jsp
+ 
+        :param price:int 가격
+        :return 호가 단위
+        """
+        if price < 1000: return 1
+        elif price >=1000 and price < 5000: return 5
+        elif price >=5000 and price < 10000: return 10
+        elif price >=10000 and price < 50000: return 50
+        elif price >=50000 and price < 100000: return 100
+        elif price >=100000 and price < 500000: return 500
+        elif price >=500000: return 1000
 
+    def get_current_call_price_by_code(self, code=None):
+        """TR: t1101 주식 현재가 호가 조회
+        :param code:str 종목코드
+        """
+        tr_code = "t1101"
+        in_params = {"shcode": code}
+        out_params =["hname", "price", "sign", "change", "diff", "volume", 
+            "jnilclose", "offerho1","bidho1", "offerrem1", "bidrem1",
+            "offerho2","bidho2", "offerrem2", "bidrem2",
+            "offerho3","bidho3", "offerrem3", "bidrem3",
+            "offerho4","bidho4", "offerrem4", "bidrem4",
+            "offerho5","bidho5", "offerrem5", "bidrem5",
+            "offerho6","bidho6", "offerrem6", "bidrem6",
+            "offerho7","bidho7", "offerrem7", "bidrem7",
+            "offerho8","bidho8", "offerrem8", "bidrem8",
+            "offerho9","bidho9", "offerrem9", "bidrem9",
+            "offerho10","bidho10", "offerrem10", "bidrem10",
+            "preoffercha10", "prebidcha10", "offer", "bid",
+            "preoffercha", "prebidcha", "hotime", "yeprice", "yevolume",
+            "yesign", "yechange", "yediff", "tmoffer", "tmbid", "ho_status",
+            "shcode", "uplmtprice", "dnlmtprice", "open", "high", "low"]
+
+        result = self._execute_query("t1101", 
+                                "t1101InBlock", 
+                                "t1101OutBlock",
+                                *out_params,
+                                **in_params)
+
+        for item in result:
+            item["code"] = code
+
+        return result
+ 
     def get_stock_price_by_code(self, code=None, cnt="1"):
         """TR: t1305 현재 날짜를 기준으로 cnt 만큼 전일의 데이터를 가져온다
         :param code:str 종목코드
@@ -153,7 +242,10 @@ class EBest:
                     'sojinrate', 'changerate', 'fpvolume', 'covolume', 
                     'value', 'ppvolume', 'o_sign', 'o_change', 'o_diff', 
                     'h_sign', 'h_change', 'h_diff', 'l_sign', 'l_change', 
-                    'l_diff', 'marketcap']  
+                    'l_diff', 'marketcap'] 
+        #t8413
+        #in_params = {"shcode":code, "qrycnt": "1", "gubun":"2", "sdate":start, "cts_date":"", "edate":end, "comp_yn":"N"}    
+        #out_params =['date', 'open', 'high', 'low', 'close', 'jdiff_vol', 'sign'] 
         result = self._execute_query("t1305", 
                                 "t1305InBlock", 
                                 "t1305OutBlock1",
@@ -164,11 +256,29 @@ class EBest:
             item["code"] = code
 
         return result
+        
+    def get_code_list(self, market=None):
+        """TR: t8436 코스피, 코스닥의 종목 리스트를 가져온다
+        :param market:str 전체(0), 코스피(1), 코스닥(2)
+        :return result:list 시장 별 종목 리스트
+        """
+        if market not in ["ALL", "KOSPI", "KOSDAQ"]:
+            raise Exception("Need to market param(ALL, KOSPI, KOSDAQ)")
+
+        market_code = {"ALL":"0", "KOSPI":"1", "KOSDAQ":"2"}
+        in_params = {"gubun":market_code[market]}
+        out_params =['hname', 'shcode', 'expcode', 'etfgubun', 'memedan', 'gubun', 'spac_gubun'] 
+        result = self._execute_query("t8436", 
+                                "t8436InBlock", 
+                                "t8436OutBlock",
+                                *out_params,
+                                **in_params)
+        return result
 
     def get_credit_trend_by_code(self, code=None, date=None):
         """TR: t1921 신용거래동향 
         :param code:str 종목코드
-        :param date:str 날짜 8자리 ex) 20220222
+        :param date:str 날짜 8자리 ex) 20190222
         """
         in_params = {"gubun":"0", "shcode":code, "date":date, "idx":"0"}
         out_params =["mmdate", "close", "sign", "jchange", "diff", "nvolume",
@@ -235,39 +345,18 @@ class EBest:
 
         return result
 
+    def get_theme_by_code(self, code):
+        if code is None:
+            raise Exception("Need to code param")
 
-
-    def login(self):
-        self.xa_session_client.ConnectServer(self.host, self.port)
-        self.xa_session_client.Login(self.user, self.passwd, self.cert_passwd, 0, 0)
-        while XASession.login_state == 0:
-            pythoncom.PumpWaitingMessages()
-
-    def logout(self):
-        #result = self.xa_session_client.Logout()
-        #if result:
-        XASession.login_state = 0
-        self.xa_session_client.DisconnectServer()
-
-
-    def get_code_list(self, market=None):
-        """TR: t8436 코스피, 코스닥의 종목 리스트를 가져온다
-        :param market:str 전체(0), 코스피(1), 코스닥(2)
-        :return result:list 시장 별 종목 리스트
-        """
-        if market not in ["ALL", "KOSPI", "KOSDAQ"]:
-            raise Exception("Need to market param(ALL, KOSPI, KOSDAQ)")
-
-        market_code = {"ALL":"0", "KOSPI":"1", "KOSDAQ":"2"}
-        in_params = {"gubun":market_code[market]}
-        out_params =['hname', 'shcode', 'expcode', 'etfgubun', 'memedan', 'gubun', 'spac_gubun'] 
-        result = self._execute_query("t8436", 
-                                "t8436InBlock", 
-                                "t8436OutBlock",
+        in_params = {"shcode":code}
+        out_params =['tmname', 'tmcode'] 
+        result = self._execute_query("t1532", 
+                                "t1532InBlock", 
+                                "t1532OutBlock",
                                 *out_params,
                                 **in_params)
         return result
-
 
     def get_theme_list(self):
         in_params = {"dummy":"1"}
@@ -333,6 +422,133 @@ class EBest:
                                     **in_params)
         return result
 
+    def get_trade_history(self, count=None):
+        in_params = {"RecCnt": count, "AcntNo": self.account, "Pwd": self.passwd,
+                     "QrySrtDt":"20181201", "QryEndDt":"20181205"}
+        out_params =["recdt", "tableid", "upgu", 
+                    "custno", "custnm", "shcode", "upnm" ]
+        result = self._execute_query("CDPCQ04700",
+                                    "CDPCQ04700InBlock1",
+                                    "CDPCQ04700OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+    def get_account_info(self):
+        """TR: CSPAQ12200 현물계좌 예수금/주문가능금액/총평가
+        :return result:list Field CSPAQ12200 참고
+        """
+        in_params = {"RecCnt":"1", "AcntNo": self.account, "Pwd": self.passwd}
+        out_params =["MnyOrdAbleAmt", "BalEvalAmt", "DpsastTotamt", 
+                    "InvstOrgAmt", "InvstPlAmt", "Dps"]
+        result = self._execute_query("CSPAQ12200",
+                                    "CSPAQ12200InBlock1",
+                                    "CSPAQ12200OutBlock2",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+    def get_account_stock_info(self):
+        """TR: CSPAQ12300 현물계좌 잔고내역 조회
+        :return result:list 계좌 보유 종목 정보
+        """
+        in_params = {"RecCnt": "1", "AcntNo": self.account, "Pwd": self.passwd, "BalCreTp": "0", "CmsnAppTpCode": "0", "D2balBaseQryTp": "0", "UprcTpCode": "0"}
+        out_params =["IsuNo", "IsuNm", "BnsBaseBalQty", "SellPrc", "BuyPrc", "NowPrc", "AvrUprc", "PnlRat", "BalEvalAmt"]
+        result = self._execute_query("CSPAQ12300",
+                                    "CSPAQ12300InBlock1",
+                                    "CSPAQ12300OutBlock3",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+
+    def order_check(self, order_no=None):
+        """TR: t0425 주식 체결/미체결
+        :param code:str 종목코드
+        :param order_no:str 주문번호
+        :return result:dict 주문번호의 체결상태
+        """
+        in_params = {"accno": self.account, "passwd": self.passwd, "expcode": "", 
+                    "chegb":"0", "medosu":"0", "sortgb":"1", "cts_ordno":" "}
+        out_params = ["ordno", "expcode", "medosu", "qty", "price", "cheqty", "cheprice", "ordrem", "cfmqty", "status", "orgordno", "ordgb", "ordermtd", "sysprocseq", "hogagb", "price1", "orggb", "singb", "loandt"]
+        result_list = self._execute_query("t0425",
+                                    "t0425InBlock",
+                                    "t0425OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        
+        result = {}
+        if order_no is not None:
+            for item in result_list:
+                if item["주문번호"] == order_no:
+                    result = item
+            return result
+        else:
+            return result_list
+
+    def order_check2(self, date, code, order_no=None):
+        #CSPAQ13700
+        print("get_order_check, ", order_no)
+        in_params = {"RecCnt":"1", "AcntNo":self.account, "InptPwd":self.passwd, "OrdMktCode":"00", 
+                    "BnsTpCode":"0", "IsuNo":code, "ExecYn":"0", "OrdDt":date, "SrtOrdNo2":"0", 
+                    "BkseqTpCode":"0", "OrdPtnCode":"00"}
+
+        out_params_3 = ["OrdDt", "OrdMktCode", "OrdNo", "OrgOrdNo", "IsuNo", 
+                     "IsuNm", "BnsTpCode", "BnsTpNm", "OrdPtnCode", "OrdPtnNm", 
+                     "MrcTpCode", "OrdQty", "OrdPrc", "ExecQty", "ExecPrc", "LastExecTime", 
+                     "OrdprcPtnCode", "OrdprcPtnNm", "AllExecQty", "OrdTime"]
+        result_list = self._execute_query("CSPAQ13700",
+                                    "CSPAQ13700InBlock1",
+                                    "CSPAQ13700OutBlock3",
+                                    *out_params_3,
+                                    **in_params)
+        
+        result = {}
+        print("get_order_check result len", len(result_list))
+        if order_no is not None:
+            for item in result_list:
+                if item["주문번호"] == order_no:
+                    result = item
+            return result
+        else:
+            return result_list
+
+    def order_stock(self, code, qty, price, bns_type, order_type="00"):
+        """TR: CSPAT00600 현물 정상 주문
+        :param bns_type:str 매매타입, 1:매도, 2:매수
+        :prarm order_type:str 호가유형, 
+            00:지정가, 03:시장가, 05:조건부지정가, 07:최우선지정가
+            61:장개시전시간외 종가, 81:시간외종가, 82:시간외단일가
+        :return result:dict 주문 관련정보
+        """
+        in_params = {"AcntNo":self.account, "InptPwd":self.passwd, "IsuNo":code, "OrdQty":qty,
+                    "OrdPrc":price, "BnsTpCode":bns_type, "OrdprcPtnCode":order_type, "MgntrnCode":"000",
+                    "LoanDt":"", "OrdCndiTpCode":"0"}
+        out_params = ["OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode", "ShtnIsuNo", "MgempNo", "OrdAmt", "SpotOrdQty", "IsuNm"]
+
+        result = self._execute_query("CSPAT00600",
+                                    "CSPAT00600InBlock1",
+                                    "CSPAT00600OutBlock2",
+                                    *out_params,
+                                    **in_params)
+        return result
+
+    def order_cancel(self, order_no, code, qty):
+        """TR: CSPAT00800 현물 취소주문
+        :param order_no:str 주문번호
+        :param code:str 종목코드
+        :param qty:str 취소 수량
+        :return result:dict 취소 결과
+        """
+        in_params = {"OrgOrdNo":order_no,"AcntNo":self.account, "InptPwd":self.passwd, "IsuNo":code, "OrdQty":qty}
+        out_params = ["OrdNo", "PrntOrdNo", "OrdTime", "OrdPtnCode", "ShtnIsuNo", "IsuNm"]
+
+        result = self._execute_query("CSPAT00800",
+                                    "CSPAT00800InBlock1",
+                                    "CSPAT00800OutBlock2",
+                                    *out_params,
+                                    **in_params)
+        return result
 
     def get_price_n_min_by_code(self, date, code, tick=None):
         """TR: t8412 주식차트(N분) 
@@ -356,39 +572,6 @@ class EBest:
         if tick is not None:
             return result[tick]
         return result
-
-    def get_account_info(self):
-        """TR: CSPAQ12200 현물계좌 예수금/주문가능금액/총평가
-        :return result:list Field CSPAQ12200 참고
-        """
-        in_params = {"RecCnt":"1", "AcntNo": self.account, "Pwd": self.passwd}
-        out_params =["MnyOrdAbleAmt", "BalEvalAmt", "DpsastTotamt", 
-                    "InvstOrgAmt", "InvstPlAmt", "Dps"]
-        result = self._execute_query("CSPAQ12200",
-                                    "CSPAQ12200InBlock1",
-                                    "CSPAQ12200OutBlock2",
-                                    *out_params,
-                                    **in_params)
-        return result 
-
-
-class XAQuery:
-    RES_PATH = "C:\\eBEST\\xingAPI\\Res\\"
-    tr_run_state = 0
-
-    def OnReceiveData(self, code):
-        print("OnReceiveData", code)
-        XAQuery.tr_run_state = 1
-
-    def OnReceiveMessage(self, error, code, message):
-        print("OnreceiveMessage", error, code, message)
-
-
-
-
-
-
-
 
 class Field:
     t1101 = {
@@ -942,3 +1125,5 @@ class Field:
             "IsuNm":"종목명"
         }
     }
+
+    
